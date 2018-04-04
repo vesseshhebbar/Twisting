@@ -1,7 +1,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
- 
+
 /* Check if the compiler thinks we are targeting the wrong operating system. */
 #if defined(__linux__)
 #error "You are not using a cross-compiler, you will most certainly run into trouble"
@@ -12,6 +12,15 @@
 #error "This tutorial needs to be compiled with a ix86-elf compiler"
 #endif
  
+ 
+// Global Variables
+static const size_t VGA_WIDTH = 80;
+static const size_t VGA_HEIGHT = 25;
+
+size_t terminal_row;
+size_t terminal_column;
+uint8_t terminal_color;
+
 /* Hardware text mode color constants. */
 enum vga_color {
 	VGA_COLOR_BLACK = 0,
@@ -32,6 +41,46 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
  
+
+/* Cursor related functions */
+static inline void outb(uint16_t port, uint8_t val)
+{
+    asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+    /* There's an outb %al, $imm8  encoding, for compile-time constant port numbers that fit in 8b.  (N constraint).
+     * Wider immediate constants would be truncated at assemble-time (e.g. "i" constraint).
+     * The  outb  %al, %dx  encoding is the only option for all other cases.
+     * %1 expands to %dx because  port  is a uint16_t.  %w1 could be used if we had the port number a wider C type */
+} 
+static inline uint8_t inb(uint16_t port)
+{
+    uint8_t ret;
+    asm volatile ( "inb %1, %0"
+                   : "=a"(ret)
+                   : "Nd"(port) );
+    return ret;
+}
+
+void enable_cursor(uint8_t cursor_start, uint8_t cursor_end)
+{
+	outb(0x3D4, 0x0A);
+	outb(0x3D5, (inb(0x3D5) & 0xC0) | cursor_start);
+ 
+	outb(0x3D4, 0x0B);
+	outb(0x3D5, (inb(0x3E0) & 0xE0) | cursor_end);
+}
+
+void update_cursor(int x, int y)
+{
+	uint16_t pos = y * VGA_WIDTH + x;
+ 
+	outb(0x3D4, 0x0F);
+	outb(0x3D5, (uint8_t) (pos & 0xFF));
+	outb(0x3D4, 0x0E);
+	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
+}
+/* Cursor related functions END*/
+
+
 static inline uint8_t vga_entry_color(enum vga_color fg, enum vga_color bg) 
 {
 	return fg | bg << 4;
@@ -49,14 +98,7 @@ size_t strlen(const char* str)
 		len++;
 	return len;
 }
- 
-static const size_t VGA_WIDTH = 80;
-static const size_t VGA_HEIGHT = 25;
- 
-size_t terminal_row;
-size_t terminal_column;
-uint8_t terminal_color;
- 
+
 /* Note the use of the volatile keyword to prevent the compiler from eliminating dead stores. */
 volatile uint16_t* terminal_buffer;
  
@@ -85,6 +127,7 @@ void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
+/* Copy Next line to current line when scrolling */
 void terminal_scroll(void)
 {
 	for( size_t i = 0; i < (VGA_HEIGHT); i++)
@@ -97,21 +140,25 @@ void terminal_scroll(void)
 
 void terminal_putchar(char c) 
 {	
+	/* Procedure for newlines */
 	if(c == '\n')
 	{
 		terminal_column = 0; ++terminal_row;	return;
 	}
 	
+	/* Procedure for wrapping text to next line*/
 	if (++terminal_column == VGA_WIDTH) 
 	{
 		terminal_column = 0; ++terminal_row;
 	}
+	/* Scroll down and reset the terminal_row to previous line */
 	if ((terminal_row) == (VGA_HEIGHT-1) && (terminal_column != 0))
 	{
 		terminal_scroll(); 
 		--terminal_row;
 	}
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);	
+	update_cursor(terminal_column, terminal_row);
 }
  
 void terminal_write(const char* data, size_t size) 
@@ -125,22 +172,29 @@ void terminal_writestring(const char* data)
 	terminal_write(data, strlen(data));
 }
  
+
 void kernel_main(void) 
 {
 	/* Initialize terminal interface */
 	terminal_initialize();
  
-	terminal_writestring("Loading Kernel Main...                Done\n");
-
-	terminal_setcolor(vga_entry_color(VGA_COLOR_BLUE, VGA_COLOR_BLACK));
-	terminal_writestring("Hello there! \n");
+	terminal_writestring("Loading Kernel Main...                    Done\n");
+	terminal_writestring("Creating TTY...               \n");
+	
+	/* Enable a cursor at correct location*/
+	enable_cursor(12,15);
+	update_cursor(55,22);
+	
+	/* Test lines */
+	terminal_setcolor(vga_entry_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK));
+	terminal_writestring("Test_Line 1 \nTest_Line 2 \nTest_Line 3 \nTest_Line 4 \nTest_Line 50000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000 \nTest_Line 6 \nTest_Line 7 \nTest_Line 8 \nTest_Line 9 \nTest_Line 10 \nTest_Line 11 \nTest_Line 12 \nTest_Line 13 \nTest_Line 14 \nTest_Line 15 \nTest_Line 16 \nTest_Line 17 \n");
+//	terminal_writestring("\nTest_Line 18 \nTest_Line 19 \nTest_Line 20 \nTest_Line 21 \nTest_Line 22 \nTest_Line 23 \nTest_Line 24 \nTest_Line 25 \nTest_Line 26 \nTest_Line 27 \nTest_Line 28 \nTest_Line 29 \nTest_Line 30 \nTest_Line 31 \nTest_Line 32 \nTest_Line 33 \nTest_Line 34 \nTest_Line 35 \nTest_Line 36 \nTest_Line 37 \nTest_Line 38 \nine 39 \nTest_Line 40 \nTest_Line 41 \nTest_Line 42 \nTest_Line 43 \nTest_Line 44 \nTest_Line 45 \nTest_Line 46 \nTest_Line 47 \nTest_Line 48 \nTest_Line 49 \nTest_Line 50 \nTest_Line 51 \nTest_Line 52 \nTest_Line 53 \nTest_Line 54 \n ine 55 \nTest_Line 56 \n Test_Line 57 \nTest_Line 58 \nTest_Line 59 \nTest_Line 60 \nTest_Line 61 \nTest_Line 62 \nTest_Line 63 \nTest_Line 64 \nTest_Line 65 \nTest_Line 66 \nTest_Line 67 \nTest_Line 68 \nTest_Line 69 \nTest_Line 70 \nTest_Line 71 \nTest_Line 72 \nTest_Line 73 \nTest_Line 74 \nTest_Line 75 \nTest_Line 76 \nTest_Line 77 \nTest_Line 78 \nine 79 \nTest_Line 80 \nTest_Line 81 \nTest_Line 82 \nTest_Line 83 \nTest_Line 84 \nTest_Line 85 \nTest_Line 86 \nTest_Line 87 \nTest_Line 88 \nTest_Line 89 \nTest_Line 90 \nTest_Line 91 \nTest_Line 92 \nTest_Line 93 \nTest_Line 94 \nTest_Line 95 \nTest_Line 96 \nTest_Line 97 \nTest_Line 98 \nTest_Line 99 \nTest_Line 100 \nTest_Line 101 \nTest_Line 102 \nTest_Line 103 \nTest_Line 104 \nTest_Line 105 \nTest_Line 106 \nTest_Line 107 \nTest_Line 108 \n");
+	
 	terminal_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
+	terminal_writestring("                                          Done\n");
 	
 	terminal_setcolor(vga_entry_color(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
-	
-	terminal_writestring("Line 1 \n Line 2 \n Line 3 \n Line 4 \n Line 5 \n Line 6 \n Line 7 \n Line 8 \n Line 9 \n Line 10 \n Line 11 \n Line 12 \n Line 13 \n Line 14 \n Line 15 \n Line 16 \n Line 17 \n Line 18 \n Line 19 \n Line 20 \n Line 21 \n Line 22 \n Line 23 \n Line 24 \n Line 25 \n Line 26 \n Line 27 \n Line 28 \n Line 29 \n Line 30 \n Line 31 \n Line 32 \n Line 33 \n Line 34 \n Line 35 \n Line 36 \n Line 37 \n Line 38 \n ine 39 \n Line 40 \n Line 41 \n Line 42 \n Line 43 \n Line 44 \n Line 45 \n Line 46 \n Line 47 \n Line 48 \n Line 49 \n Line 50 \n Line 51 \n Line 52 \n Line 53 \n Line 54 \n  ine 55 \n Line 56 \n  Line 57 \n Line 58 \n Line 59 \n Line 60 \n Line 61 \n Line 62 \n Line 63 \n Line 64 \n Line 65 \n Line 66 \n Line 67 \n Line 68 \n Line 69 \n Line 70 \n Line 71 \n Line 72 \n Line 73 \n Line 74 \n Line 75 \n Line 76 \n Line 77 \n Line 78 \n ine 79 \n Line 80 \n Line 81 \n Line 82 \n Line 83 \n Line 84 \n Line 85 \n Line 86 \n Line 87 \n Line 88 \n Line 89 \n Line 90 \n Line 91 \n Line 92 \n Line 93 \n Line 94 \n Line 95 \n Line 96 \n Line 97 \n Line 98 \n Line 99 \n Line 100 \n Line 101 \n Line 102 \n Line 103 \n Line 104 \n Line 105 \n Line 106 \n Line 107 \n Line 108 \n");
-	
+	terminal_writestring("Hello there! \n");
 	terminal_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-	
 	
 }
