@@ -172,6 +172,43 @@ void terminal_writestring(const char* data)
 	terminal_write(data, strlen(data));
 }
  
+char* itoa( int value, char * str, int base )			// From OSDev.org
+{
+    char * rc;
+    char * ptr;
+    char * low;
+    // Check for supported base.
+    if ( base < 2 || base > 36 )
+    {
+        *str = '\0';
+        return str;
+    }
+    rc = ptr = str;
+    // Set '-' for negative decimals.
+    if ( value < 0 && base == 10 )
+    {
+        *ptr++ = '-';
+    }
+    // Remember where the numbers start.
+    low = ptr;
+    // The actual conversion.
+    do
+    {
+        // Modulo is negative for negative value. This trick makes abs() unnecessary.
+        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz"[35 + value % base];
+        value /= base;
+    } while ( value );
+    // Terminating the string.
+    *ptr-- = '\0';
+    // Invert the numbers.
+    while ( low < ptr )
+    {
+        char tmp = *low;
+        *low++ = *ptr;
+        *ptr-- = tmp;
+    }
+    return rc;
+}
 
 void kernel_main(void) 
 {
@@ -187,11 +224,15 @@ void kernel_main(void)
 	
 	/* Test lines */
 	terminal_setcolor(vga_entry_color(VGA_COLOR_CYAN, VGA_COLOR_BLACK));
-	terminal_writestring("Test_Line 1 \nTest_Line 2 \nTest_Line 3 \nTest_Line 4 \nTest_Line 50000000000000000000000000000000000000000000000000000500000000000000000000000000000000000000000 \nTest_Line 6 \nTest_Line 7 \nTest_Line 8 \nTest_Line 9 \nTest_Line 10 \nTest_Line 11 \nTest_Line 12 \nTest_Line 13 \nTest_Line 14 \nTest_Line 15 \nTest_Line 16 \nTest_Line 17 \n");
+	terminal_writestring("Test_Line 1 \nTest_Line 2 \nTest_Line 3 \nTest_Line 4 \nTest_Line 5 \nTest_Line 6 \nTest_Line 7 \nTest_Line 8 \nTest_Line 9 \nTest_Line 10 \nTest_Line 11 \nTest_Line 12 \nTest_Line 13 \nTest_Line 14 \nTest_Line 15 \nTest_Line 16 \nTest_Line 17 \n");
 //	terminal_writestring("\nTest_Line 18 \nTest_Line 19 \nTest_Line 20 \nTest_Line 21 \nTest_Line 22 \nTest_Line 23 \nTest_Line 24 \nTest_Line 25 \nTest_Line 26 \nTest_Line 27 \nTest_Line 28 \nTest_Line 29 \nTest_Line 30 \nTest_Line 31 \nTest_Line 32 \nTest_Line 33 \nTest_Line 34 \nTest_Line 35 \nTest_Line 36 \nTest_Line 37 \nTest_Line 38 \nine 39 \nTest_Line 40 \nTest_Line 41 \nTest_Line 42 \nTest_Line 43 \nTest_Line 44 \nTest_Line 45 \nTest_Line 46 \nTest_Line 47 \nTest_Line 48 \nTest_Line 49 \nTest_Line 50 \nTest_Line 51 \nTest_Line 52 \nTest_Line 53 \nTest_Line 54 \n ine 55 \nTest_Line 56 \n Test_Line 57 \nTest_Line 58 \nTest_Line 59 \nTest_Line 60 \nTest_Line 61 \nTest_Line 62 \nTest_Line 63 \nTest_Line 64 \nTest_Line 65 \nTest_Line 66 \nTest_Line 67 \nTest_Line 68 \nTest_Line 69 \nTest_Line 70 \nTest_Line 71 \nTest_Line 72 \nTest_Line 73 \nTest_Line 74 \nTest_Line 75 \nTest_Line 76 \nTest_Line 77 \nTest_Line 78 \nine 79 \nTest_Line 80 \nTest_Line 81 \nTest_Line 82 \nTest_Line 83 \nTest_Line 84 \nTest_Line 85 \nTest_Line 86 \nTest_Line 87 \nTest_Line 88 \nTest_Line 89 \nTest_Line 90 \nTest_Line 91 \nTest_Line 92 \nTest_Line 93 \nTest_Line 94 \nTest_Line 95 \nTest_Line 96 \nTest_Line 97 \nTest_Line 98 \nTest_Line 99 \nTest_Line 100 \nTest_Line 101 \nTest_Line 102 \nTest_Line 103 \nTest_Line 104 \nTest_Line 105 \nTest_Line 106 \nTest_Line 107 \nTest_Line 108 \n");
 	
+	terminal_writestring("Testing itoa... Print 299792 :            ");
+	char* str;
+	terminal_writestring(itoa(299792, str, 10));
+	
 	terminal_setcolor(vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK));
-	terminal_writestring("                                          Done\n");
+	terminal_writestring("\n                                          Done\n");
 	
 	terminal_setcolor(vga_entry_color(VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK));
 	terminal_writestring("Hello there! \n");
